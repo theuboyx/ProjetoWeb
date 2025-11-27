@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CodeMovie — Dashboard</title>
+
+<!-- Bootstrap (tema azul claro) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<style>
+  /* Theme variables */
+  :root{
+    --accent: #3f6cff;
+    --card-bg: #ffffff;
+    --page-bg: #f5f8ff;
+    --text: #0b1220;
+    --muted: #6b7280;
+  }
+  .dark-mode{
+    --accent: #4ea1ff;
+    --card-bg: #0f1724;
+    --page-bg: #071028;
+    --text: #e6eefc;
+    --muted: #9aaed3;
+  }
+
+  body{
+    background: var(--page-bg);
+    color: var(--text);
+    transition: background .25s, color .25s;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+
+  .app-container{ max-width:1200px; margin:28px auto; padding:18px; }
+
+  .topbar{
+    display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:18px;
+  }
+
+  .brand {
+    display:flex; gap:12px; align-items:center;
+  }
+  .brand .logo {
+    width:48px; height:48px; background:linear-gradient(135deg,var(--accent), #6e8bff); border-radius:10px; display:flex; align-items:center; justify-content:center;
+    color:white; font-weight:700; font-size:20px;
+  }
+  .brand h1 { font-size:20px; margin:0; color:var(--accent); }
+
+  .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+  input[type="search"], select{
+    min-width:180px;
+  }
+
+  /* grid */
+  .row-cards{
+    display:grid;
+    grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+    gap:16px;
+  }
+
+  .card-movie{
+    background:var(--card-bg);
+    border-radius:12px;
+    overflow:hidden;
+    position:relative;
+    border:1px solid rgba(15,23,36,0.04);
+    transition: transform .22s ease, box-shadow .22s ease, filter .22s ease;
+  }
+  .card-movie:hover{
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 18px 40px rgba(63,108,255,0.12);
+    filter: brightness(1.03);
+  }
+  .poster{
+    width:100%; height:240px; object-fit:cover; display:block; background:#ddd;
+  }
+  .meta{ padding:12px; }
+  .meta .title{ font-weight:700; font-size:15px; color:var(--text); }
+  .meta .sub{ font-size:12px; color:var(--muted); margin-top:4px; }
+
+  /* play overlay */
+  .play-overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;
+    background:linear-gradient(180deg, rgba(63,108,255,0.0), rgba(0,0,0,0.28));
+    opacity:0; transition:opacity .18s ease;
+  }
+  .card-movie:hover .play-overlay{ opacity:1; pointer-events:auto; }
+  .play-btn{
+    background:rgba(0,0,0,0.55); border-radius:999px; padding:10px 12px; color:white; font-size:22px; display:inline-flex; align-items:center; gap:8px;
+  }
+
+  /* favorite star */
+  .fav-btn{
+    position:absolute; top:10px; right:10px; z-index:6; width:36px; height:36px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.85); color:var(--muted); cursor:pointer;
+    box-shadow:0 6px 18px rgba(15,23,36,0.06);
+  }
+  .dark-mode .fav-btn{ background:rgba(0,0,0,0.45); color:var(--muted); }
+  .fav-btn.faved{ color: #ffd24d; filter: drop-shadow(0 6px 12px rgba(255,178,64,0.12)); }
+
+  /* chips and headers */
+  .section-header{ display:flex; align-items:center; justify-content:space-between; margin:18px 0 8px; }
+  .chip{ background:var(--card-bg); padding:6px 10px; border-radius:999px; color:var(--muted); border:1px solid rgba(15,23,36,0.04); }
+
+  /* modal iframe */
+  .modal-iframe .modal-content{ background:transparent; border:0; }
+  .modal-iframe .modal-body{ padding:0; }
+  .modal-iframe iframe{ width:100%; height:70vh; border:0; border-radius:8px; }
+
+  /* profile avatar */
+  .avatar-sm{ width:36px; height:36px; border-radius:8px; object-fit:cover; border:2px solid rgba(255,255,255,0.06); }
+
+  .desc { font-size:12px; color:var(--muted); margin-top:8px; max-height:66px; overflow:hidden; }
+
+  /* small screens tweaks */
+  @media (max-width:576px){
+    .poster{ height:180px; }
+    .modal-iframe .modal-body iframe{ height:50vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="app-container-inner container">
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">CM</div>
+        <div>
+          <h1>CodeMovie</h1>
+          <div style="font-size:13px;color:var(--muted)" id="welcomeTxt">Bem-vindo</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <input id="search" class="form-control form-control-sm" type="search" placeholder="Buscar filme/serie..." oninput="applyFilters()" />
+        <select id="genre" class="form-select form-select-sm" onchange="applyFilters()">
+          <option value="">Gênero (Todos)</option>
+        </select>
+        <select id="year" class="form-select form-select-sm" onchange="applyFilters()">
+          <option value="">Ano (Todos)</option>
+        </select>
+        <select id="rating" class="form-select form-select-sm" onchange="applyFilters()">
+          <option value="">Classificação (Todos)</option>
+          <option value="9">>= 9.0</option>
+          <option value="8">>= 8.0</option>
+          <option value="7">>= 7.0</option>
+        </select>
+
+        <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">Limpar</button>
+
+        <button class="btn btn-sm" id="favoritesBtn" onclick="showFavorites()">
+          <i class="fa-solid fa-star"></i> Meus Favoritos
+        </button>
+
+        <button class="btn btn-sm btn-primary" id="themeToggle" onclick="toggleTheme()">🌗</button>
+
+        <img id="topAvatar" class="avatar-sm" src="https://i.imgur.com/2qK2QeC.png" alt="avatar" style="cursor:pointer" onclick="openProfileModal()" />
+        <button class="btn btn-sm btn-outline-danger" onclick="logout()" title="Logout">Sair</button>
+      </div>
+    </div>
+
+    <!-- Sections -->
+    <div class="section-header">
+      <h4 style="margin:0">Catálogo</h4>
+      <div class="chip" id="countChip">0 itens</div>
+    </div>
+
+    <div id="catalog" class="row-cards"></div>
+
+    <!-- Favorites Section -->
+    <div id="favoritesSection" style="display:none;">
+      <div class="section-header">
+        <h4 style="margin:0">Meus Favoritos</h4>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="clearFavorites()">Limpar Favoritos</button>
+          <button class="btn btn-sm btn-secondary" onclick="hideFavorites()">Voltar</button>
+        </div>
+      </div>
+      <div id="favoritesGrid" class="row-cards"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Trailer Modal -->
+<div class="modal fade modal-iframe" id="trailerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body p-0">
+        <iframe id="trailerFrame" src="" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sinopse Modal (reutilizável) -->
+<div class="modal fade" id="synModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="synTitle" class="modal-title">Sinopse</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div id="synBody" class="modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Meu Perfil</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex gap-3 align-items-center mb-3">
+          <img id="profilePreview" src="https://i.imgur.com/2qK2QeC.png" class="avatar-sm" alt="avatar" style="width:64px;height:64px;border-radius:10px" />
+          <div>
+            <label class="btn btn-sm btn-outline-secondary mb-1">
+              Alterar foto <input id="profileFile" type="file" accept="image/*" hidden>
+            </label>
+            <div class="text-muted small">Máx 2MB</div>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small">Nome</label>
+          <input id="profileName" class="form-control form-control-sm" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">E-mail</label>
+          <input id="profileEmail" class="form-control form-control-sm" />
+        </div>
+        <hr />
+        <div class="mb-2">
+          <label class="form-label small">Nova senha</label>
+          <input id="profilePass" type="password" class="form-control form-control-sm" />
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+          <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button class="btn btn-sm btn-primary" onclick="saveProfile()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* ========= Data: 20 filmes + 10 séries (30 itens) com descrição ========= */
+const items = [
+  { id:'f1', type:'filme', title:'Interestelar', genre:'Ficção', year:2014, rating:8.6, img:'https://image.tmdb.org/t/p/w500/rAiYTfKGqDCRIIqo664sY9XZIvQ.jpg', trailer:'https://www.youtube.com/embed/zSWdZVtXT7E', description:'Em um futuro próximo, um grupo de exploradores viaja por um buraco de minhoca em busca de um novo lar para a humanidade, enfrentando sacrifícios pessoais e paradoxos temporais.' },
+  { id:'f2', type:'filme', title:'Avatar', genre:'Ficção', year:2009, rating:7.8, img:'https://image.tmdb.org/t/p/w500/kyeqWdyUXW608qlYkRqosgbbJyK.jpg', trailer:'https://www.youtube.com/embed/5PSNL1qE6VY', description:'Em Pandora, um ex-fuzileiro se envolve com a cultura Na\'vi enquanto auxilia uma missão humana que ameaça o planeta.' },
+  { id:'f3', type:'filme', title:'Oppenheimer', genre:'Drama', year:2023, rating:8.6, img:'https://tse1.mm.bing.net/th/id/OIP.7q9z3Vk89ml-RgmstGY6GgHaLH?rs=1', trailer:'https://www.youtube.com/embed/uYPbbksJxIg', description:'A biografia de J. Robert Oppenheimer e os dilemas morais por trás da criação da bomba atômica.' },
+  { id:'f4', type:'filme', title:'Batman (1989)', genre:'Ação', year:1989, rating:7.5, img:'https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg', trailer:'https://www.youtube.com/embed/mqqft2x_Aa4', description:'O herói enigmático enfrenta o assustador Coringa e lida com a escuridão que assola Gotham City.' },
+  { id:'f5', type:'filme', title:'Coringa', genre:'Drama', year:2019, rating:8.4, img:'https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg', trailer:'https://www.youtube.com/embed/zAGVQLHvwOY', description:'A transformação de Arthur Fleck em um dos maiores antagonistas de Gotham, em uma narrativa sombria sobre alienação.' },
+  { id:'f6', type:'filme', title:'John Wick 4', genre:'Ação', year:2023, rating:7.8, img:'https://image.tmdb.org/t/p/w500/vZloFAK7NmvMGKE7VkF5UHaz0I.jpg', trailer:'https://www.youtube.com/embed/3f9kd0B0sYU', description:'John Wick volta à ação para enfrentar inimigos implacáveis em uma sequência estilizada de ação e perseguições.' },
+  { id:'f7', type:'filme', title:'Duna: Parte Dois', genre:'Ficção', year:2024, rating:8.2, img:'https://tse4.mm.bing.net/th/id/OIP.4_B0uZEHBx7IZn5nt9MjBQHaLG?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/YE7Z4K2n8YQ', description:'Continuação épica da saga de Paul Atreides, mergulhando na política, mitologia e batalhas pelo controle do deserto.' },
+  { id:'f8', type:'filme', title:'Vingadores: Ultimato', genre:'Ação', year:2019, rating:8.4, img:'https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg', trailer:'https://www.youtube.com/embed/TcMBFSGVi1c', description:'Os heróis remanescentes unem forças para desfazer o estalo de Thanos e restaurar o universo.' },
+  { id:'f9', type:'filme', title:'Gladiador', genre:'Ação', year:2000, rating:8.5, img:'https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg', trailer:'https://www.youtube.com/embed/owK1qxDselE', description:'Um general traído busca justiça e honra nas arenas romanas, lutando por vingança e liberdade.' },
+  { id:'f10', type:'filme', title:'Matrix', genre:'Ficção', year:1999, rating:8.7, img:'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg', trailer:'https://www.youtube.com/embed/m8e-FF8MsqU', description:'Neo descobre a verdade sobre a realidade e lidera a resistência contra máquinas que escravizam a humanidade.' },
+  { id:'f11', type:'filme', title:'Titanic', genre:'Romance', year:1997, rating:7.8, img:'https://tse4.mm.bing.net/th/id/OIP.tBbhxP_BoyYHg3_9rMZDvgHaLH?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/2e-eXJ6HgkQ', description:'Um romance impossível entre classes sociais a bordo do infame navio que promete travessia e tragédia.' },
+  { id:'f12', type:'filme', title:'Shrek', genre:'Animação', year:2001, rating:7.9, img:'https://image.tmdb.org/t/p/w500/2yYP0PQjG8zVqturh1BAqu2Tixl.jpg', trailer:'https://www.youtube.com/embed/ogreTrailer', description:'Um ogro e seus amigos embarcam em uma aventura para resgatar uma princesa e encontrar seu lugar no mundo.' },
+  { id:'f13', type:'filme', title:'Toy Story', genre:'Animação', year:1995, rating:8.3, img:'https://image.tmdb.org/t/p/w500/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg', trailer:'https://www.youtube.com/embed/KYz2wyBy3kc', description:'Os brinquedos ganham vida quando os humanos não estão por perto — amizade, ciúme e lealdade em destaque.' },
+  { id:'f14', type:'filme', title:'A Chegada', genre:'Ficção', year:2016, rating:7.9, img:'https://image.tmdb.org/t/p/w500/xJHokMbljvjADYdit5fK5VQsXEG.jpg', trailer:'https://www.youtube.com/embed/8m6wD9s5f2Q', description:'Uma linguista é recrutada para se comunicar com extraterrestres e descobrir o real propósito da visita.' },
+  { id:'f15', type:'filme', title:'Clube da Luta', genre:'Drama', year:1999, rating:8.8, img:'https://image.tmdb.org/t/p/w500/bptfVGEQuv6vDTIMVCHjJ9Dz8PX.jpg', trailer:'https://www.youtube.com/embed/SUXWAEX2jlg', description:'Um homem entediado e um carismático vendedor criam um clube clandestino que desafia normas e identidade.' },
+  { id:'f16', type:'filme', title:'Pulp Fiction', genre:'Crime', year:1994, rating:8.9, img:'https://tse1.mm.bing.net/th/id/OIP.wBcXNYBGKcv69qpGreLc_QHaKg?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/s7EdQ4FqbhY', description:'Histórias interligadas de crime, redenção e humor negro em Los Angeles.' },
+  { id:'f17', type:'filme', title:'O Senhor dos Anéis: A Sociedade do Anel', genre:'Fantasia', year:2001, rating:8.8, img:'https://image.tmdb.org/t/p/w500/6oom5QYQ2yQTMJIbnvbkBL9cHo6.jpg', trailer:'https://www.youtube.com/embed/V75dMMIW2B4', description:'Um grupo improvável parte em missão para destruir um anel com poder capaz de dominar a Terra-média.' },
+  { id:'f18', type:'filme', title:'Pantera Negra', genre:'Ação', year:2018, rating:7.3, img:'https://image.tmdb.org/t/p/w500/uxzzxijgPIY7slzFvMotPv8wjKA.jpg', trailer:'https://www.youtube.com/embed/xjDjIWPwcPU', description:'T\'Challa retorna a Wakanda para assumir o trono e enfrenta desafios que definem o futuro da nação.' },
+  { id:'f19', type:'filme', title:'Forrest Gump', genre:'Drama', year:1994, rating:8.8, img:'https://image.tmdb.org/t/p/w500/saHP97rTPS5eLmrLQEcANmKrsFl.jpg', trailer:'https://www.youtube.com/embed/bLvqoHBptjg', description:'A jornada de um homem de bom coração que, sem perceber, vive momentos marcantes da história americana.' },
+  { id:'f20', type:'filme', title:'O Fabuloso Destino de Amélie', genre:'Romance', year:2001, rating:8.3, img:'https://tse1.mm.bing.net/th/id/OIP.SwTxqbzeG0x-x4YHnJaJLgHaLH?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/HUECWi5pX7o', description:'Amélie decide ajudar pessoas ao seu redor enquanto vive uma jornada tímida em busca do próprio amor.' },
+
+  { id:'s1', type:'serie', title:'Breaking Bad', genre:'Drama', year:2008, rating:9.5, img:'https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg', trailer:'https://www.youtube.com/embed/HhesaQXLuRY', description:'Um professor de química com câncer transforma-se em fabricante de metanfetamina para garantir o futuro da família.' },
+  { id:'s2', type:'serie', title:'Stranger Things', genre:'Suspense', year:2016, rating:8.7, img:'https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg', trailer:'https://www.youtube.com/embed/b9EkMc79ZSU', description:'Em uma pequena cidade, crianças enfrentam forças sobrenaturais enquanto tentam encontrar um amigo desaparecido.' },
+  { id:'s3', type:'serie', title:'Game of Thrones', genre:'Fantasia', year:2011, rating:9.2, img:'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg', trailer:'https://www.youtube.com/embed/KPLWWIOCOOQ', description:'Nobres famílias lutam pelo poder em um universo repleto de intriga, dragões e traição.' },
+  { id:'s4', type:'serie', title:'The Witcher', genre:'Fantasia', year:2019, rating:8.2, img:'https://image.tmdb.org/t/p/w500/zrPpUlehQaBf8YX2NrVrKK8IEpf.jpg', trailer:'https://www.youtube.com/embed/ndl1W4ltcmg', description:'Geralt, um caçador de monstros, navega por um mundo onde humanos são frequentemente piores que as feras.' },
+  { id:'s5', type:'serie', title:'The Mandalorian', genre:'Ação', year:2019, rating:8.8, img:'https://image.tmdb.org/t/p/w500/sWgBv7LV2PRoQgkxwlibdGXKz1S.jpg', trailer:'https://www.youtube.com/embed/aOC8E8z_ifw', description:'Um caçador de recompensas solitário protege uma criança de grande poder enquanto viaja pela galáxia.' },
+  { id:'s6', type:'serie', title:'Peaky Blinders', genre:'Drama', year:2013, rating:8.8, img:'https://tse4.mm.bing.net/th/id/OIP.p5EVqkM4PndkP5Rgy3p2ZAAAAA?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/oVzVdvGIC7U', description:'A ascensão de uma gangue familiar em Birmingham depois da Primeira Guerra Mundial, comandada por Tommy Shelby.' },
+  { id:'s7', type:'serie', title:'La Casa de Papel', genre:'Crime', year:2017, rating:8.3, img:'https://image.tmdb.org/t/p/w500/reEMJA1uzscCbkpeRJeTT2bjqUp.jpg', trailer:'https://www.youtube.com/embed/toPstPIe-2I', description:'Um grupo de assaltantes, liderado pelo Professor, realiza assaltos meticulosamente planejados à Casa da Moeda da Espanha.' },
+  { id:'s8', type:'serie', title:'The Boys', genre:'Ação', year:2019, rating:8.7, img:'https://m.media-amazon.com/images/I/61189R+UonL._SY445_SX342_ML2_.jpg', trailer:'https://www.youtube.com/embed/T3pW1D4v0qA', description:'Um grupo de vigilantes busca expor e derrubar super-heróis corruptos e corporativos.' },
+  { id:'s9', type:'serie', title:'Loki', genre:'Ação', year:2021, rating:8.1, img:'https://tse4.mm.bing.net/th/id/OIP.0mO7r_FIqUxNvesC3bZWMgHaEa?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/nW948Va-l10', description:'Loki enfrenta viagens no tempo, universos alternativos e sua própria identidade em aventuras imprevisíveis.' },
+  { id:'s10', type:'serie', title:'One Piece', genre:'Aventura', year:2023, rating:8.0, img:'https://tse1.mm.bing.net/th/id/OIP.aDZ6ZwSrgcqqh3gUhkKeygHaLx?rs=1&pid=ImgDetMain&o=7&rm=3', trailer:'https://www.youtube.com/embed/Ades3pQbeh8', description:'Uma épica jornada pirata em busca do tesouro lendário — amizade, aventura e sonhos sem limites.' }
+];
+
+/* ========= State & storage ========= */
+let favorites = JSON.parse(localStorage.getItem('cm_favs') || '[]'); // array of ids
+let profile = JSON.parse(localStorage.getItem('cm_profile') || 'null') || { name:'Matheus', email:'', avatar:'https://i.imgur.com/2qK2QeC.png', password:'' };
+let dark = (localStorage.getItem('cm_theme') === 'dark') || false;
+
+/* apply theme */
+function applyTheme(){
+  if(dark) document.documentElement.classList.add('dark-mode'); else document.documentElement.classList.remove('dark-mode');
+  localStorage.setItem('cm_theme', dark ? 'dark' : 'light');
+}
+applyTheme();
+
+/* populate selects */
+function populateFilters(){
+  const genreSet = new Set(), yearSet = new Set();
+  items.forEach(it=>{ if(it.genre) genreSet.add(it.genre); if(it.year) yearSet.add(it.year); });
+  const genre = document.getElementById('genre');
+  Array.from(genreSet).sort().forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; genre.appendChild(o); });
+  const year = document.getElementById('year');
+  Array.from(yearSet).sort((a,b)=>b-a).forEach(y=>{ const o=document.createElement('option'); o.value=y; o.textContent=y; year.appendChild(o); });
+}
+populateFilters();
+
+/* render catalog */
+const catalogEl = document.getElementById('catalog');
+const countChip = document.getElementById('countChip');
+
+function isFav(id){ return favorites.includes(id); }
+
+function buildCard(it){
+  const div = document.createElement('div');
+  div.className = 'card-movie';
+  div.dataset.id = it.id;
+
+  div.innerHTML = `
+    <div style="position:relative;">
+      <img class="poster" src="${it.img}" alt="${escapeHtml(it.title)}" onerror="this.src='https://i.imgur.com/2qK2QeC.png'">
+      <div class="play-overlay">
+        <button class="play-btn btn btn-sm btn-dark" onclick="openPlayer('${it.id}', event)"><i class="fa-solid fa-play"></i>&nbsp;<span class="d-none d-md-inline">Assistir</span></button>
+      </div>
+      <div class="fav-btn ${isFav(it.id)?'faved':''}" onclick="toggleFav('${it.id}', event)" title="Favoritar">
+        <i class="fa-solid fa-star"></i>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="title">${escapeHtml(it.title)}</div>
+      <div class="sub">${it.type.toUpperCase()} • ${it.genre || '—'} • ${it.year || '—'} • ⭐ ${it.rating || '—'}</div>
+      <div class="desc">${escapeHtml(it.description)}</div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-sm btn-outline-secondary" onclick="openSynopsis('${escapeHtmlForJs(it.description)}','${escapeHtmlForJs(it.title)}')"><i class="fa-solid fa-align-left"></i> Sinopse</button>
+        <button class="btn btn-sm btn-primary" onclick="openTrailer('${it.trailer}', event)"><i class="fa-solid fa-film"></i> Trailer</button>
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+function render(list){
+  catalogEl.innerHTML = '';
+  list.forEach(it=> catalogEl.appendChild(buildCard(it)) );
+  countChip.textContent = `${list.length} itens`;
+}
+
+/* initial render shows all */
+render(items);
+
+/* Filters & search */
+function applyFilters(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const g = document.getElementById('genre').value;
+  const y = document.getElementById('year').value;
+  const r = document.getElementById('rating').value;
+
+  let filtered = items.slice();
+
+  if(q) filtered = filtered.filter(it => it.title.toLowerCase().includes(q) || it.description.toLowerCase().includes(q));
+  if(g) filtered = filtered.filter(it => it.genre === g);
+  if(y) filtered = filtered.filter(it => String(it.year) === String(y));
+  if(r) filtered = filtered.filter(it => Number(it.rating) >= Number(r));
+
+  // show catalog, hide favorites section
+  document.getElementById('favoritesSection').style.display = 'none';
+  document.getElementById('catalog').style.display = 'grid';
+  render(filtered);
+}
+
+function clearFilters(){
+  document.getElementById('search').value=''; document.getElementById('genre').value=''; document.getElementById('year').value=''; document.getElementById('rating').value='';
+  applyFilters();
+}
+
+/* favorites functions */
+function toggleFav(id, ev){
+  ev.stopPropagation(); // avoid triggering parent handlers
+  if(favorites.includes(id)) favorites = favorites.filter(x=>x!==id);
+  else favorites.push(id);
+  localStorage.setItem('cm_favs', JSON.stringify(favorites));
+  // re-render current view (either catalog or favorites)
+  if(document.getElementById('favoritesSection').style.display === 'block') showFavorites(); else applyFilters();
+}
+
+function showFavorites(){
+  const favGrid = document.getElementById('favoritesGrid');
+  favGrid.innerHTML = '';
+  const favItems = items.filter(it => favorites.includes(it.id));
+  if(favItems.length === 0) favGrid.innerHTML = `<div style="padding:18px;color:var(--muted)">Você não possui favoritos.</div>`;
+  else favItems.forEach(it => favGrid.appendChild(buildCard(it)));
+  document.getElementById('favoritesSection').style.display = 'block';
+  document.getElementById('catalog').style.display = 'none';
+  countChip.textContent = `${favItems.length} favoritos`;
+}
+
+function hideFavorites(){
+  document.getElementById('favoritesSection').style.display = 'none';
+  document.getElementById('catalog').style.display = 'grid';
+  applyFilters();
+}
+
+function clearFavorites(){
+  if(!confirm('Remover todos os favoritos?')) return;
+  favorites = []; localStorage.setItem('cm_favs', JSON.stringify(favorites));
+  showFavorites();
+}
+
+/* trailer modal */
+const trailerModal = new bootstrap.Modal(document.getElementById('trailerModal'), { keyboard:true });
+
+function openTrailer(url, ev){
+  if(ev) ev.stopPropagation();
+  if(!url){ alert('Trailer não disponível'); return; }
+  const frame = document.getElementById('trailerFrame');
+  frame.src = url + (url.includes('?') ? '&autoplay=1' : '?autoplay=1');
+  trailerModal.show();
+  // clear on hide
+  document.getElementById('trailerModal').addEventListener('hidden.bs.modal', ()=>{ frame.src = ''; }, { once:true });
+}
+
+/* sinopse modal (reutilizável) */
+const synModal = new bootstrap.Modal(document.getElementById('synModal'));
+function openSynopsis(text, title){
+  document.getElementById('synTitle').textContent = decodeHtml(title);
+  document.getElementById('synBody').textContent = decodeHtml(text);
+  synModal.show();
+}
+
+/* player fake */
+function openPlayer(id, ev){
+  if(ev) ev.stopPropagation();
+  const item = items.find(x => x.id === id);
+  const modalHtml = `
+    <div class="modal fade" id="playerFake" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="background:#000;">
+          <div class="modal-header" style="border:none;">
+            <h5 class="modal-title text-white">${escapeHtml(item.title)}</h5>
+            <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+
+          <div class="modal-body p-0">
+            <div style="background:#111;height:420px;display:flex;align-items:center;justify-content:center;color:white;font-size:22px;">
+              ▶️ Player Fake — Apenas demonstração
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  const m = new bootstrap.Modal(document.getElementById('playerFake'));
+  m.show();
+  document.getElementById('playerFake').addEventListener('hidden.bs.modal', () => { document.getElementById('playerFake').remove(); }, { once:true });
+}
+
+/* profile modal and save */
+const profileModal = new bootstrap.Modal(document.getElementById('profileModal'));
+document.getElementById('profileFile').addEventListener('change', function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  if(f.size > 2*1024*1024){ alert('Arquivo muito grande (máx 2MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = function(ev){ document.getElementById('profilePreview').src = ev.target.result; };
+  reader.readAsDataURL(f);
+});
+
+function openProfileModal(){
+  const saved = JSON.parse(localStorage.getItem('cm_profile') || 'null');
+  if(saved) profile = saved;
+  document.getElementById('profileName').value = profile.name || '';
+  document.getElementById('profileEmail').value = profile.email || '';
+  document.getElementById('profilePass').value = '';
+  document.getElementById('profilePreview').src = profile.avatar || 'https://i.imgur.com/2qK2QeC.png';
+  profileModal.show();
+}
+
+function saveProfile(){
+  const name = document.getElementById('profileName').value.trim();
+  const email = document.getElementById('profileEmail').value.trim();
+  const pass = document.getElementById('profilePass').value;
+  const avatar = document.getElementById('profilePreview').src;
+
+  if(!name){ alert('Informe seu nome'); return; }
+  profile.name = name; profile.email = email;
+  if(pass) profile.password = pass; // client-side only
+  profile.avatar = avatar;
+  localStorage.setItem('cm_profile', JSON.stringify(profile));
+  document.getElementById('topAvatar').src = profile.avatar;
+  profileModal.hide();
+  alert('Perfil salvo!');
+}
+
+/* load saved profile and user */
+(function(){
+  const saved = JSON.parse(localStorage.getItem('cm_profile') || 'null');
+  if(saved) profile = saved;
+  document.getElementById('topAvatar').src = profile.avatar || 'https://i.imgur.com/2qK2QeC.png';
+
+  const u = JSON.parse(localStorage.getItem('cm_user') || 'null');
+  if(u && u.name) document.getElementById('welcomeTxt').textContent = 'Bem-vindo, ' + u.name;
+})();
+
+/* theme toggle */
+function toggleTheme(){
+  dark = !dark;
+  applyTheme();
+}
+
+/* logout */
+function logout(){
+  // fake logout: remove stored user (but keep profile/favs)
+  localStorage.removeItem('cm_user');
+  window.location.href = 'index.html';
+}
+
+/* helper */
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+function escapeHtmlForJs(s){ return escapeHtml(s).replace(/'/g,"\\'").replace(/"/g,'\\"'); }
+function decodeHtml(s){ const txt = document.createElement('textarea'); txt.innerHTML = s; return txt.value; }
+</script>
+
+</body>
+</html>
